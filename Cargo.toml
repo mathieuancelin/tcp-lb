@@ -8,7 +8,6 @@ argparse = "0.2.2"
 env_logger = "0.6.0"
 rand = "0.6.5"
 futures = "0.1.25"
-tokio-core = "0.1.17"
-tokio-io = "0.1.12"
+tokio = "0.1.16"
 dns-lookup = "1.0.0"
 
