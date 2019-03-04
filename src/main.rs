@@ -23,6 +23,34 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::reactor::Handle;
 use tokio::prelude::*;
 
+#[derive(Clone)]
+struct MyTcpStream(Arc<Mutex<TcpStream>>);
+
+impl Read for MyTcpStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().read(buf)
+    }
+}
+
+impl Write for MyTcpStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl AsyncRead for MyTcpStream {}
+
+impl AsyncWrite for MyTcpStream {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        try!(self.0.lock().unwrap().shutdown(Shutdown::Write));
+        Ok(().into())
+    }
+}
+
 #[cfg(unix)]
 fn configure_tcp(tcp: &net2::TcpBuilder) -> io::Result<()> {
     use net2::unix::*;
@@ -154,34 +182,6 @@ fn run_proxy() -> Result<(), Box<std::error::Error>> {
         thread.join().unwrap();
     }
     Ok(())
-}
-
-#[derive(Clone)]
-struct MyTcpStream(Arc<Mutex<TcpStream>>);
-
-impl Read for MyTcpStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().read(buf)
-    }
-}
-
-impl Write for MyTcpStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl AsyncRead for MyTcpStream {}
-
-impl AsyncWrite for MyTcpStream {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        try!(self.0.lock().unwrap().shutdown(Shutdown::Write));
-        Ok(().into())
-    }
 }
 
 fn main() -> Result<(), Box<std::error::Error>> {
