@@ -23,9 +23,7 @@ use argparse::{ArgumentParser, Store, Collect};
 
 fn run_proxy() -> Result<(), Box<std::error::Error>> {
 
-
     let mut urls: Vec<std::net::SocketAddr> = Vec::new();
-
     let mut servers: Vec<String> = Vec::new();
     let mut bind = "127.0.0.1:8000".to_string();
     let mut log_level = "info".to_string();
@@ -54,21 +52,22 @@ fn run_proxy() -> Result<(), Box<std::error::Error>> {
         error!("Need at least one server to load balance");
         exit(1);
     }
-
-    info!("Load balancer listening on {}", bind);
-
     for url in servers {
+      if !url.contains(":") {
+        error!("You need to specify loadbalanced server port on {}. It should look like: host:80", url);
+        exit(1);
+      }
       let parts: Vec<&str> = url.split(":").collect();
-      debug!("{} was resolved to: ", parts[0]);
       for mut host in lookup_host(parts[0]).unwrap() {
         let sock_addr = std::net::SocketAddr::new(host, parts[1].parse::<u16>().unwrap());
-        info!("{} was resolved to {}", url, sock_addr);
+        debug!("{} was resolved to {}", url, sock_addr);
         urls.push(sock_addr);
       }
     }
 
     let addr = bind.parse().unwrap();
     let sock = TcpListener::bind(&addr).unwrap();
+    info!("Load balancer listening on {}", bind);
 
     let done = sock
         .incoming()
@@ -78,23 +77,10 @@ fn run_proxy() -> Result<(), Box<std::error::Error>> {
             let url = &urls[index];
             let server = TcpStream::connect(&url);
             let amounts = server.and_then(move |server| {
-                // Create separate read/write handles for the TCP clients that we're
-                // proxying data between. Note that typically you'd use
-                // `AsyncRead::split` for this operation, but we want our writer
-                // handles to have a custom implementation of `shutdown` which
-                // actually calls `TcpStream::shutdown` to ensure that EOF is
-                // transmitted properly across the proxied connection.
-                //
-                // As a result, we wrap up our client/server manually in arcs and
-                // use the impls below on our custom `MyTcpStream` type.
                 let client_reader = MyTcpStream(Arc::new(Mutex::new(client)));
                 let client_writer = client_reader.clone();
                 let server_reader = MyTcpStream(Arc::new(Mutex::new(server)));
                 let server_writer = server_reader.clone();
-
-                // Copy the data (in parallel) between the client and the server.
-                // After the copy is done we indicate to the remote side that we've
-                // finished by shutting down the connection.
                 let client_to_server = copy(client_reader, server_writer)
                     .and_then(|(n, _, server_writer)| shutdown(server_writer).map(move |_| n));
 
@@ -124,9 +110,6 @@ fn run_proxy() -> Result<(), Box<std::error::Error>> {
     Ok(())
 }
 
-// This is a custom type used to have a custom implementation of the
-// `AsyncWrite::shutdown` method which actually calls `TcpStream::shutdown` to
-// notify the remote end that we're done writing.
 #[derive(Clone)]
 struct MyTcpStream(Arc<Mutex<TcpStream>>);
 
