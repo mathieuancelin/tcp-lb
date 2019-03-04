@@ -8,20 +8,19 @@ extern crate rand;
 extern crate net2;
 extern crate dns_lookup;
 
+use argparse::{ArgumentParser, Store, Collect};
+use dns_lookup::lookup_host;
+use futures::{Future, Stream};
 use rand::Rng;
 use std::env;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::process::exit;
-use dns_lookup::lookup_host;
-use futures::{Future, Stream};
 use tokio::io::{copy, shutdown};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::reactor::Handle;
 use tokio::prelude::*;
-
-use argparse::{ArgumentParser, Store, Collect};
 
 #[cfg(unix)]
 fn configure_tcp(tcp: &net2::TcpBuilder) -> io::Result<()> {
@@ -96,7 +95,6 @@ fn run_proxy() -> Result<(), Box<std::error::Error>> {
     for url in urls.clone() {
       info!(" *  {}", url);
     }
-    info!(" ");
 
     let done = sock
         .incoming()
