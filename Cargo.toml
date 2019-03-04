@@ -10,4 +10,6 @@ rand = "0.6.5"
 futures = "0.1.25"
 tokio = "0.1.16"
 dns-lookup = "1.0.0"
+net2 = "0.2.33"
+
 

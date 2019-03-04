@@ -5,21 +5,43 @@ extern crate argparse;
 extern crate futures;
 extern crate tokio;
 extern crate rand;
+extern crate net2;
 extern crate dns_lookup;
 
 use rand::Rng;
 use std::env;
 use std::io::{self, Read, Write};
-use std::net::Shutdown;
+use std::net::{Shutdown, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::process::exit;
 use dns_lookup::lookup_host;
 use futures::{Future, Stream};
 use tokio::io::{copy, shutdown};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::reactor::Handle;
 use tokio::prelude::*;
 
 use argparse::{ArgumentParser, Store, Collect};
+
+#[cfg(unix)]
+fn configure_tcp(tcp: &net2::TcpBuilder) -> io::Result<()> {
+    use net2::unix::*;
+    try!(tcp.reuse_port(true));
+    Ok(())
+}
+
+fn listener(addr: &SocketAddr) -> io::Result<TcpListener> {
+    let listener = match *addr {
+        SocketAddr::V4(_) => try!(net2::TcpBuilder::new_v4()),
+        SocketAddr::V6(_) => try!(net2::TcpBuilder::new_v6()),
+    };
+    try!(configure_tcp(&listener));
+    try!(listener.reuse_address(true));
+    try!(listener.bind(addr));
+    listener.listen(1024).and_then(|l| {
+        TcpListener::from_std(l, &Handle::default())
+    })
+}
 
 fn run_proxy() -> Result<(), Box<std::error::Error>> {
 
@@ -66,7 +88,9 @@ fn run_proxy() -> Result<(), Box<std::error::Error>> {
     }
 
     let addr = bind.parse().unwrap();
-    let sock = TcpListener::bind(&addr).unwrap();
+    //let sock = TcpListener::bind(&addr).unwrap();
+    let sock = listener(&addr)?;
+
     info!("TCP load balancer listening on {}", bind);
     info!("forwarding traffic to");
     for url in urls.clone() {
