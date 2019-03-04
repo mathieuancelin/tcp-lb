@@ -67,7 +67,12 @@ fn run_proxy() -> Result<(), Box<std::error::Error>> {
 
     let addr = bind.parse().unwrap();
     let sock = TcpListener::bind(&addr).unwrap();
-    info!("Load balancer listening on {}", bind);
+    info!("TCP load balancer listening on {}", bind);
+    info!("forwarding traffic to");
+    for url in urls.clone() {
+      info!(" *  {}", url);
+    }
+    info!(" ");
 
     let done = sock
         .incoming()
